@@ -1,13 +1,13 @@
 import os
-
-import pytest
 import textwrap
-
-from conan.test.assets.sources import gen_function_cpp
 from test.functional.toolchains.meson._base import TestMesonBase
 
+import pytest
 
-@pytest.mark.tool("pkg_config")
+from conan.test.assets.sources import gen_function_cpp
+
+
+@pytest.mark.skipif(not shutil.which("pkg-config"), reason="pkg-config not available")
 class MesonTest(TestMesonBase):
     _test_package_meson_build = textwrap.dedent("""
         project('test_package', 'cpp')
@@ -48,13 +48,25 @@ class MesonTest(TestMesonBase):
         """)
 
     def test_reuse(self):
+        if not shutil.which("cmake"):
+            pytest.skip("cmake not available, skipping test_reuse")
         self.t.run("new cmake_lib -d name=hello -d version=0.1")
 
-        test_package_cpp = gen_function_cpp(name="main", includes=["hello"], calls=["hello"])
+        test_package_cpp = gen_function_cpp(
+            name="main", includes=["hello"], calls=["hello"]
+        )
 
-        self.t.save({os.path.join("test_package", "conanfile.py"): self._test_package_conanfile_py,
-                     os.path.join("test_package", "meson.build"): self._test_package_meson_build,
-                     os.path.join("test_package", "test_package.cpp"): test_package_cpp})
+        self.t.save(
+            {
+                os.path.join(
+                    "test_package", "conanfile.py"
+                ): self._test_package_conanfile_py,
+                os.path.join(
+                    "test_package", "meson.build"
+                ): self._test_package_meson_build,
+                os.path.join("test_package", "test_package.cpp"): test_package_cpp,
+            }
+        )
 
         self.t.run("create . --name=hello --version=0.1")
 
