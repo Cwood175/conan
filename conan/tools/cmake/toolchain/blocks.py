@@ -642,6 +642,8 @@ class FindFiles(Block):
         return host_runtime_dirs
 
     def _join_paths(self, paths):
+        if not paths:
+            return None
         paths = [p.replace('\\', '/').replace('$', '\\$').replace('"', '\\"') for p in paths]
         paths = [relativize_path(p, self._conanfile, "${CMAKE_CURRENT_LIST_DIR}") for p in paths]
         return " ".join([f'"{p}"' for p in paths])
@@ -1065,6 +1067,8 @@ class GenericSystemBlock(Block):
         arch_host = self._conanfile.settings.get_safe("arch")
         arch_build = self._conanfile.settings_build.get_safe("arch")
         os_build = self._conanfile.settings_build.get_safe("os")
+        if os_host == 'Macos' and arch_host == arch_build and os_build == os_host:
+            return False
         return os_host in ('iOS', 'watchOS', 'tvOS', 'visionOS') or (
                 os_host == 'Macos' and (arch_host != arch_build or os_build != os_host))
 
@@ -1140,7 +1144,7 @@ class GenericSystemBlock(Block):
         compiler = self._conanfile.settings.get_safe("compiler")
         if compiler not in ("msvc", "clang") or "Visual" not in str(self._toolchain.generator):
             # Ninja will get it from VCVars, not from toolchain
-            return system_version, None, None
+            return system_version, system_version, generator_platform
 
         winsdk_version = self._conanfile.conf.get("tools.microsoft:winsdk_version", check_type=str)
         if winsdk_version:
@@ -1167,13 +1171,17 @@ class GenericSystemBlock(Block):
         generator_platform = self.get_generator_platform(generator, self._conanfile)
         toolset = self.get_toolset(generator, self._conanfile)
         system_name, system_version, system_processor = self._get_cross_build()
+        if system_name is None:
+            os_host = self._conanfile.settings.get_safe("os")
+            system_name = os_host if os_host else "Generic"
 
         # This is handled by the tools.apple:sdk_path and CMAKE_OSX_SYSROOT in Apple
         cmake_sysroot = self._conanfile.conf.get("tools.build:sysroot")
         cmake_sysroot = cmake_sysroot.replace("\\", "/") if cmake_sysroot is not None else None
         if cmake_sysroot is not None:
             cmake_sysroot = relativize_path(cmake_sysroot, self._conanfile,
-                                            "${CMAKE_CURRENT_LIST_DIR}")
+                                            "${CMAKE_CURRENT_LIST_DIR}
+")
 
         result = self._get_winsdk_version(system_version, generator_platform)
         system_version, winsdk_version, gen_platform_sdk_version = result
